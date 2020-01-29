@@ -16,6 +16,13 @@ const Log = mongoose.model("Log", {
         type: Date,
         default: Date.now
     },
+    numEntries: {
+        type: Number,
+        default: 0  //How to make non editable?
+    },
+    lastEntry: {
+        type: Date,
+    },
     entries: [
         {
             time: {
@@ -28,5 +35,6 @@ const Log = mongoose.model("Log", {
     ]
 
 })
+
 
 module.exports = Log

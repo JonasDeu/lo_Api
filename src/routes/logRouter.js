@@ -6,7 +6,7 @@ const auth = require("../middleware/auth")
 
 router.get("/logs", auth, async (req, res) => {
     try {
-        await req.user.populate("logs", "name owner date").execPopulate();
+        await req.user.populate("logs", "name owner date numEntries lastEntry").execPopulate();
         res.send(req.user.logs);
     } catch (e) {
         res.status(500).send(e);
@@ -49,6 +49,8 @@ router.post("/logs/:id", auth, async (req, res) => {
 
         var logEntry = await { time: Date.now() };
         log.entries.push(logEntry);
+        log.numEntries++
+        log.lastEntry = Date.now()
         await log.save()
 
         res.status(201).send(log)
@@ -78,7 +80,6 @@ router.delete("/logs/:idLog/:idEntry", auth, async (req, res) => {
     try {
         const log = await Log.findOne({ _id: _idLog, owner: req.user._id });
         if (!log) {
-            console.log("a")
             return res.status(404).send();
         }
 
@@ -86,6 +87,7 @@ router.delete("/logs/:idLog/:idEntry", auth, async (req, res) => {
         if (!logEntry) {
             return res.status(404).send();
         }
+        log.numEntries++
         await log.save()
 
         res.send(log);
