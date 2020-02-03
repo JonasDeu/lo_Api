@@ -13,6 +13,21 @@ router.get("/logs", auth, async (req, res) => {
     }
 })
 
+router.get("/logs/download", auth, async (req, res) => {
+    try {
+        await req.user.populate("logs", "name owner date numEntries lastEntry entries").execPopulate();
+        console.log(req.user.logs)
+        var data = JSON.stringify(req.user.logs);
+        res.setHeader('Content-disposition', 'attachment; filename= yourLogs.json');
+        res.setHeader('Content-type', 'application/json');
+        res.write(data, function (err) {
+            res.end();
+        })
+    } catch (e) {
+        res.status(500).send(e);
+    }
+})
+
 router.get("/logs/:id", auth, async (req, res) => {
     const _id = req.params.id;
     try {
