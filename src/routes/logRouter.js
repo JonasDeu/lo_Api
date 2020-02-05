@@ -2,7 +2,7 @@ const express = require("express")
 const router = new express.Router()
 const Log = require("../models/log")
 const auth = require("../middleware/auth")
-
+const { Parser } = require('json2csv');
 
 router.get("/logs", auth, async (req, res) => {
     try {
@@ -16,10 +16,18 @@ router.get("/logs", auth, async (req, res) => {
 router.get("/logs/download", auth, async (req, res) => {
     try {
         await req.user.populate("logs", "name owner date numEntries lastEntry entries").execPopulate();
-        console.log(req.user.logs)
-        var data = JSON.stringify(req.user.logs);
-        res.setHeader('Content-disposition', 'attachment; filename= yourLogs.json');
-        res.setHeader('Content-type', 'application/json');
+
+        var data = null
+        const fields = ['_id', 'name', 'numEntries', 'owner', 'date', 'lastEntry', 'entries._id', 'entries.time'];
+        try {
+            const json2csvParser = new Parser({ fields, unwind: "entries", unwindBlank: true });
+            data = json2csvParser.parse(JSON.parse(JSON.stringify(req.user.logs)));
+        } catch (e) {
+            res.status(500).send(e);
+        }
+
+        res.setHeader('Content-disposition', 'attachment; filename= yourLogs.csv');
+        res.setHeader('Content-Type', 'text/csv')
         res.write(data, function (err) {
             res.end();
         })
