@@ -2,7 +2,8 @@ const express = require("express")
 const router = new express.Router()
 const Log = require("../models/log")
 const auth = require("../middleware/auth")
-const { Parser } = require('json2csv');
+const { Parser } = require("json2csv")
+const moment = require("moment")
 
 router.get("/logs", auth, async (req, res) => {
     try {
@@ -48,6 +49,59 @@ router.get("/logs/:id", auth, async (req, res) => {
         res.status(500).send(e);
     }
 });
+
+router.get("/logs/:id/:mode/:chartSize", auth, async (req, res) => {
+    const _id = req.params.id
+    const mode = req.params.mode
+    const chartSize = parseInt(req.params.chartSize)
+
+
+    if (!(["day", "hour"].includes(mode))) {
+        console.log(mode)
+        return res.status(400).send("Mode has to be 'day' or 'hour'!");
+    }
+
+    try {
+        const log = await Log.findOne({ _id, owner: req.user._id });
+        if (!log) {
+            return res.status(404).send();
+        }
+
+        const modes = {
+            "day": {
+                "inMillisec": 8.64e+7,
+                "format": "DD.MM."
+            },
+            "hour": {
+                "inMillisec": 3.6e+6,
+                "format": "HH:mm"
+            }
+        }
+
+        const curTime = new Date()
+        const data = new Array(chartSize).fill(0)
+        const labels = new Array(chartSize)
+
+        log.entries.map((entry, index) => {
+            const tempDate = new Date(moment(log.entries[index].time).startOf(mode).toString())
+            data[Math.ceil((curTime.getTime() - tempDate.getTime()) / modes[mode].inMillisec) - 1] += 1
+            return null
+        })
+
+        for (var i = 0; i < labels.length; i++) {
+            labels[i] = moment(new Date(curTime.getTime() - (i * modes[mode].inMillisec))).format(modes[mode].format);
+        }
+
+        const merge = labels.map((day, index) => {
+            return { day, data: data[index] }
+        })
+
+        merge.reverse()
+        res.send(merge)
+    } catch (e) {
+        res.status(500).send(e)
+    }
+})
 
 router.post("/logs", auth, async (req, res) => {
     const log = new Log({
