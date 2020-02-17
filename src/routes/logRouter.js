@@ -50,57 +50,102 @@ router.get("/logs/:id", auth, async (req, res) => {
     }
 });
 
-router.get("/logs/:id/:mode/:chartSize", auth, async (req, res) => {
+router.get("/logs/:id?/:mode/:chartSize", auth, async (req, res) => {
     const _id = req.params.id
     const mode = req.params.mode
     const chartSize = parseInt(req.params.chartSize)
-
 
     if (!(["day", "hour"].includes(mode))) {
         console.log(mode)
         return res.status(400).send("Mode has to be 'day' or 'hour'!");
     }
 
-    try {
-        const log = await Log.findOne({ _id, owner: req.user._id });
-        if (!log) {
-            return res.status(404).send();
+    const modes = {
+        "day": {
+            "inMillisec": 8.64e+7,
+            "format": "DD.MM."
+        },
+        "hour": {
+            "inMillisec": 3.6e+6,
+            "format": "HH:mm"
         }
+    }
 
-        const modes = {
-            "day": {
-                "inMillisec": 8.64e+7,
-                "format": "DD.MM."
-            },
-            "hour": {
-                "inMillisec": 3.6e+6,
-                "format": "HH:mm"
+    const curTime = new Date()
+    const data = new Array(chartSize).fill(0)
+    const labels = new Array(chartSize)
+
+    if (_id) {
+        try {
+            const log = await Log.findOne({ _id, owner: req.user._id });
+            if (!log) {
+                return res.status(404).send();
             }
+
+            log.entries.map((entry, index) => {
+                const tempDate = new Date(moment(log.entries[index].time).startOf(mode).toString())
+                data[Math.ceil((curTime.getTime() - tempDate.getTime()) / modes[mode].inMillisec) - 1] += 1
+                return null
+            })
+
+            for (var i = 0; i < labels.length; i++) {
+                labels[i] = moment(new Date(curTime.getTime() - (i * modes[mode].inMillisec))).format(modes[mode].format);
+            }
+
+            const merge = labels.map((time, index) => {
+                return { time, [log.name]: data[index] }
+            })
+
+            merge.reverse()
+            res.send(merge)
+        } catch (e) {
+            res.status(500).send(e)
         }
 
-        const curTime = new Date()
-        const data = new Array(chartSize).fill(0)
-        const labels = new Array(chartSize)
-
-        log.entries.map((entry, index) => {
-            const tempDate = new Date(moment(log.entries[index].time).startOf(mode).toString())
-            data[Math.ceil((curTime.getTime() - tempDate.getTime()) / modes[mode].inMillisec) - 1] += 1
-            return null
-        })
+    } else {
+        await req.user.populate("logs", "name entries").execPopulate();
 
         for (var i = 0; i < labels.length; i++) {
             labels[i] = moment(new Date(curTime.getTime() - (i * modes[mode].inMillisec))).format(modes[mode].format);
         }
+        const labelsObj = labels.map((time, index) => {
+            return { time }
+        })
 
-        const merge = labels.map((day, index) => {
-            return { day, data: data[index] }
+
+        const accumData = req.user.logs.map((log, index) => {
+            var tempData = new Array(chartSize).fill(0)
+            log.entries.map((entry, index) => {
+                const tempDate = new Date(moment(log.entries[index].time).startOf(mode).toString())
+                tempData[Math.ceil((curTime.getTime() - tempDate.getTime()) / modes[mode].inMillisec) - 1] += 1
+                return null
+            })
+            return ([log.name, tempData])
+
+        })
+
+        const accumDataObj = accumData.map((log, logIndex) => {
+            const t = log[1].map((entry) => {
+                return {
+                    [log[0]]: entry
+                }
+            })
+            return t
+        })
+
+        const merge = []
+        labelsObj.forEach((label, indexLabel) => {
+            accumDataObj.forEach((entry, indexEntry) => {
+                label = Object.assign(label, entry[indexLabel])
+            })
+            merge.push(label)
+
         })
 
         merge.reverse()
         res.send(merge)
-    } catch (e) {
-        res.status(500).send(e)
     }
+
 })
 
 router.post("/logs", auth, async (req, res) => {
