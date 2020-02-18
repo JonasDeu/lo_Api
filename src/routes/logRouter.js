@@ -50,6 +50,84 @@ router.get("/logs/:id", auth, async (req, res) => {
     }
 });
 
+pearson = (d1, d2) => {
+    let { min, pow, sqrt } = Math
+    let add = (a, b) => a + b
+    let n = min(d1.length, d2.length)
+    if (n === 0) {
+        return 0
+    }
+    [d1, d2] = [d1.slice(0, n), d2.slice(0, n)]
+    let [sum1, sum2] = [d1, d2].map(l => l.reduce(add))
+    let [pow1, pow2] = [d1, d2].map(l => l.reduce((a, b) => a + pow(b, 2), 0))
+    let mulSum = d1.map((n, i) => n * d2[i]).reduce(add)
+    let dense = sqrt((pow1 - pow(sum1, 2) / n) * (pow2 - pow(sum2, 2) / n))
+    if (dense === 0) {
+        return 0
+    }
+    return (mulSum - (sum1 * sum2 / n)) / dense
+}
+
+router.get("/logs/correlations/:mode/:time", auth, async (req, res) => {
+    const time = parseInt(req.params.time) //Set to param later
+    const mode = req.params.mode
+
+    if (!(["day", "hour"].includes(mode))) {
+        console.log(mode)
+        return res.status(400).send("Mode has to be 'day' or 'hour'!");
+    }
+
+    const modes = {
+        "day": {
+            "inMillisec": 8.64e+7,
+            "format": "DD.MM."
+        },
+        "hour": {
+            "inMillisec": 3.6e+6,
+            "format": "HH:mm"
+        }
+    }
+
+    try {
+        await req.user.populate("logs", "name entries").execPopulate();
+
+        const curTime = new Date()
+        const accumData = req.user.logs.map((log) => {
+            var tempData = new Array(time).fill(0)
+            log.entries.map((entry) => {
+                const tempDate = new Date(moment(entry.time).startOf(mode).toString())
+                tempData[Math.ceil((curTime.getTime() - tempDate.getTime()) / modes[mode].inMillisec) - 1] += 1
+                return null
+            })
+            return ([log.name, tempData])
+        })
+
+        const matrix = new Array(accumData.length);
+        const labels = []
+        accumData.forEach((firstEntry, firstIndex) => {
+            labels.push(firstEntry[0])
+            matrix[firstIndex] = new Array(accumData.length)
+            accumData.forEach((secondEntry, secondIndex) => {
+                matrix[firstIndex][secondIndex] = pearson(firstEntry[1], secondEntry[1])
+            })
+        })
+
+        response = {
+            labels,
+            correlations: matrix
+        }
+
+        res.send(response)
+
+    } catch (e) {
+        res.status(500).send(e);
+    }
+})
+
+
+
+
+
 router.get("/logs/:id?/:mode/:chartSize", auth, async (req, res) => {
     const _id = req.params.id
     const mode = req.params.mode
@@ -78,12 +156,10 @@ router.get("/logs/:id?/:mode/:chartSize", auth, async (req, res) => {
     if (_id) {
         try {
             const log = await Log.findOne({ _id, owner: req.user._id });
-            if (!log) {
-                return res.status(404).send();
-            }
+            if (!log) { return res.status(404).send() }
 
-            log.entries.map((entry, index) => {
-                const tempDate = new Date(moment(log.entries[index].time).startOf(mode).toString())
+            log.entries.map((entry) => {
+                const tempDate = new Date(moment(entry.time).startOf(mode).toString())
                 data[Math.ceil((curTime.getTime() - tempDate.getTime()) / modes[mode].inMillisec) - 1] += 1
                 return null
             })
@@ -111,7 +187,6 @@ router.get("/logs/:id?/:mode/:chartSize", auth, async (req, res) => {
         const labelsObj = labels.map((time, index) => {
             return { time }
         })
-
 
         const accumData = req.user.logs.map((log, index) => {
             var tempData = new Array(chartSize).fill(0)
