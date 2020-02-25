@@ -184,11 +184,11 @@ router.get("/logs/:id?/:mode/:chartSize", auth, async (req, res) => {
         for (var i = 0; i < labels.length; i++) {
             labels[i] = moment(new Date(curTime.getTime() - (i * modes[mode].inMillisec))).format(modes[mode].format);
         }
-        const labelsObj = labels.map((time, index) => {
+        const labelsObj = labels.map((time) => {
             return { time }
         })
 
-        const accumData = req.user.logs.map((log, index) => {
+        const accumData = req.user.logs.map((log) => {
             var tempData = new Array(chartSize).fill(0)
             log.entries.map((entry, index) => {
                 const tempDate = new Date(moment(log.entries[index].time).startOf(mode).toString())
@@ -196,10 +196,9 @@ router.get("/logs/:id?/:mode/:chartSize", auth, async (req, res) => {
                 return null
             })
             return ([log.name, tempData])
-
         })
 
-        const accumDataObj = accumData.map((log, logIndex) => {
+        const accumDataObj = accumData.map((log) => {
             const t = log[1].map((entry) => {
                 return {
                     [log[0]]: entry
@@ -210,7 +209,7 @@ router.get("/logs/:id?/:mode/:chartSize", auth, async (req, res) => {
 
         const merge = []
         labelsObj.forEach((label, indexLabel) => {
-            accumDataObj.forEach((entry, indexEntry) => {
+            accumDataObj.forEach((entry) => {
                 label = Object.assign(label, entry[indexLabel])
             })
             merge.push(label)
@@ -224,6 +223,10 @@ router.get("/logs/:id?/:mode/:chartSize", auth, async (req, res) => {
 })
 
 router.post("/logs", auth, async (req, res) => {
+    if (await Log.findOne({ name: req.body.name, owner: req.user._id })) {
+        return res.status(409).send("Duplicate Log!");
+    }
+
     const log = new Log({
         ...req.body,
         owner: req.user._id
