@@ -6,22 +6,6 @@ const Log = require("./log")
 
 
 const userSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    password: {
-        type: String,
-        required: true,
-        minlength: 6,
-        trim: true,
-        validate(value) {
-            if (value.toLowerCase().includes("password")) {
-                throw new Error("Cannot include password")
-            }
-        }
-    },
     email: {
         type: String,
         required: true,
@@ -34,14 +18,11 @@ const userSchema = new mongoose.Schema({
             }
         }
     },
-    age: {
-        type: Number,
-        default: 0,
-        validate(value) {
-            if (value <= 0) {
-                throw new Error("Age must be positive")
-            }
-        }
+    password: {
+        type: String,
+        required: true,
+        minlength: 6,
+        trim: true,
     },
     tokens: [{
         token: {
