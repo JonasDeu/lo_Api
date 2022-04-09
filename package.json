@@ -15,7 +15,7 @@
     "express": "^4.17.1",
     "json2csv": "^4.5.4",
     "jsonwebtoken": "^8.5.1",
-    "moment": "^2.24.0",
+    "moment": "^2.29.2",
     "mongodb": "^3.5.2",
     "mongoose": "^5.8.9",
     "validator": "^12.2.0"
